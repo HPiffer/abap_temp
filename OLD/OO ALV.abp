@@ -1,0 +1,163 @@
+**********************************************************************
+* DEFINIÇÕES ALV OO                                                  *
+**********************************************************************
+DATA: 
+*- Objetos ----------------------------------------------------------*      
+      o_alv    TYPE REF TO cl_salv_table,
+      o_layout TYPE REF TO cl_salv_layout,
+      o_cols   TYPE REF TO cl_salv_columns,
+      o_sorts  TYPE REF TO cl_salv_sorts,
+      o_header TYPE REF TO cl_salv_form_layout_grid.
+
+*&---------------------------------------------------------------------*
+*&      Form  F_CALL_ALV
+*&---------------------------------------------------------------------*
+*       text
+*----------------------------------------------------------------------*
+*  -->  p1        text
+*  <--  p2        text
+*----------------------------------------------------------------------*
+FORM f_call_alv .
+
+  DATA: wa_key    TYPE salv_s_layout_key,
+        vl_column TYPE REF TO cl_salv_column.
+
+*- Criando o Objeto ALV ---------------------------------------------*
+  TRY.
+      cl_salv_table=>factory(
+        IMPORTING
+          r_salv_table = o_alv
+        CHANGING
+          t_table = t_saida
+      ).
+    CATCH cx_salv_msg.
+  ENDTRY.
+
+  PERFORM f_set_top_of_list.
+  PERFORM f_ordena_dados.
+
+*- Alocando Status GUI ----------------------------------------------*
+  o_alv->set_screen_status(
+    pfstatus = 'STANDARD'
+    report   = sy-repid
+    set_functions = o_alv->c_functions_all
+  ).
+
+*- Criando o Layout -------------------------------------------------*
+  o_layout = o_alv->get_layout( ).
+  wa_key-report = sy-repid.
+  o_layout->set_key( wa_key ).
+  o_layout->set_save_restriction( if_salv_c_layout=>restrict_none ).
+
+*- Alocando o tamanho das colunas proporcionais aos registros -------*
+  o_cols = o_alv->get_columns( ).
+  o_cols->set_optimize( 'X' ).
+
+  TRY .
+      vl_column = o_cols->get_column( 'DT_LANC' ).
+      vl_column->set_long_text( 'Data Lançamento' ).
+      vl_column->set_short_text( 'Dt. Lanc' ).
+      vl_column->set_medium_text( 'Dt. Lanc' ).
+
+    CATCH cx_salv_data_error cx_salv_existing cx_salv_not_found.
+  ENDTRY.
+
+*- Exibir relatório -------------------------------------------------*
+  o_alv->display( ).
+
+ENDFORM.                    " F_CALL_ALV
+
+
+*&---------------------------------------------------------------------*
+*&      Form  F_SET_TOP_OF_LIST
+*&---------------------------------------------------------------------*
+*       text
+*----------------------------------------------------------------------*
+*  -->  p1        text
+*  <--  p2        text
+*----------------------------------------------------------------------*
+FORM f_set_top_of_list .
+
+  DATA: vl_string     TYPE string,
+        vl_flow       TYPE REF TO cl_salv_form_layout_flow,
+        vl_lines      TYPE i.
+
+  CREATE OBJECT o_header.
+
+*- Título -----------------------------------------------------------*
+  vl_string = |Relatório Imobilizado|.
+  vl_flow = o_header->create_flow(
+    row = 1
+    column = 1
+  ).
+  vl_flow->create_text( text = vl_string ).
+  CLEAR: vl_string.
+
+*- Data -------------------------------------------------------------*
+  vl_string = |Data de Execução { sy-datum+6(2) }.{ sy-datum+4(2) }.{ sy-datum(4) }|.
+  vl_flow = o_header->create_flow(
+    row = 2
+    column = 1
+  ).
+  vl_flow->create_text( text = vl_string ).
+  CLEAR: vl_string.
+
+*- Quantidade de Linhas ---------------------------------------------*
+  DESCRIBE TABLE t_saida LINES vl_lines.
+  vl_string = |Qtd. Linhas: { vl_lines }|.
+  vl_flow = o_header->create_flow(
+    row = 3
+    column = 1
+  ).
+  vl_flow->create_text( text = vl_string ).
+  CLEAR: vl_string.
+
+  o_alv->set_top_of_list( o_header ).
+  o_alv->set_top_of_list_print( o_header ).
+
+ENDFORM.                    " F_SET_TOP_OF_LIST
+
+
+*&---------------------------------------------------------------------*
+*&      Form  F_ORDENA_DADOS
+*&---------------------------------------------------------------------*
+*       text
+*----------------------------------------------------------------------*
+*  -->  p1        text
+*  <--  p2        text
+*----------------------------------------------------------------------*
+FORM f_ordena_dados .
+
+*- Ordenando os registros -------------------------------------------*
+  PERFORM f_sort USING:
+*        'CAMPO'    'Ordem'   'Subtotal',
+        'EMPRESA'   1         '',
+        'N_IMOBI'   2         '',
+        'SUB_N'     3         ''.
+
+ENDFORM.                    " F_ORDENA_DADOS
+
+
+*&---------------------------------------------------------------------*
+*&      Form  F_SORT
+*&---------------------------------------------------------------------*
+*       text
+*----------------------------------------------------------------------*
+*      -->P_CAMPO     text
+*      -->P_ORDEM     text
+*      -->P_SUBTOT    text
+*----------------------------------------------------------------------*
+FORM f_sort  USING  p_campo p_ordem p_subtot.
+
+  TRY .
+      o_sorts = o_alv->get_sorts( ).
+      o_sorts->add_sort(
+        columnname = p_campo
+        position   = p_ordem
+        subtotal   = p_subtot
+      ).
+
+    CATCH cx_salv_data_error cx_salv_existing cx_salv_not_found.
+  ENDTRY.
+
+ENDFORM.                    " F_SORT

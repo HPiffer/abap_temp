@@ -1,0 +1,540 @@
+*-----------------------------------------------------------------------*
+* Programa  : ztestehayron                                              *
+* Descrição : Report de testes pessoal                                  *
+* Módulo    : Teste                                                     *
+* Transação :                                                           *
+* Objetivo  : Estudos de codificação ABAP                               *
+*-----------------------------------------------------------------------*
+* Autor                    | Data       | Observação                    *
+* Hayron Piffer            | 06.12.2018 | Criação do programa           *
+*-----------------------------------------------------------------------*
+REPORT ztestehayron.
+
+TABLES: lfa1, lfb1, t001.   "Tabelas utilizadas
+
+TYPE-POOLS: slis, icon.     "Tipos importados
+
+*---------------------------------------------------------------------*
+* Tipos           - (ty)                                              *
+* Tabelas Globais - (gt)                                              *
+* Tabelas Locais  - (lt)                                              *
+* Work Areas      - (wa)                                              *
+* Variaveis       - (v)                                               *
+*---------------------------------------------------------------------*
+* Types, Tabelas, WorkAreas                                           *
+*---------------------------------------------------------------------*
+TYPES: BEGIN OF ty_saida,
+         sel(1),
+         icon(4),
+         lifnr   TYPE lfa1-lifnr,
+         name1   TYPE lfa1-name1,
+         ort01   TYPE lfa1-ort01,
+         anred   TYPE lfa1-anred,
+         regio   TYPE lfa1-regio,
+         land1   TYPE lfa1-land1,
+         bukrs   TYPE lfb1-bukrs,
+         butxt   TYPE t001-butxt,
+         pernr   TYPE lfb1-pernr,
+         altkn   TYPE lfb1-altkn,
+       END OF ty_saida,             "Tipo para saída da ALV
+
+       BEGIN OF ty_forn,
+         lifnr TYPE lfa1-lifnr,
+         name1 TYPE lfa1-name1,
+         ort01 TYPE lfa1-ort01,
+         anred TYPE lfa1-anred,
+         regio TYPE lfa1-regio,
+         land1 TYPE lfa1-land1,
+         bukrs TYPE lfb1-bukrs,
+         pernr TYPE lfb1-pernr,
+         altkn TYPE lfb1-altkn,
+       END OF ty_forn,              "Tipo para fornecedor
+
+       BEGIN OF ty_desc,
+         bukrs TYPE t001-bukrs,
+         butxt TYPE t001-butxt,
+       END OF ty_desc,              "Tipo para descrição
+
+       BEGIN OF ty_excel,
+         sel(1)    TYPE c,
+         icon(4)   TYPE c,
+         lifnr(10) TYPE c,
+         name1(35) TYPE c,
+         ort01(35) TYPE c,
+         anred(15) TYPE c,
+         regio(3)  TYPE c,
+         land1(3)  TYPE c,
+         bukrs(4)  TYPE c,
+         butxt(25) TYPE c,
+         pernr(8)  TYPE c,
+         altkn(10) TYPE c,
+       END OF ty_excel.             "Tipo para exportação do excel
+
+"Tabelas locais
+DATA: lt_saida TYPE TABLE OF ty_saida,
+      lt_forn  TYPE TABLE OF ty_forn,
+      lt_desc  TYPE TABLE OF ty_desc,
+      t_excel  TYPE TABLE OF ty_excel.
+
+"Work Areas
+DATA: wa_saida TYPE ty_saida,
+      wa_forn  TYPE ty_forn,
+      wa_desc  TYPE ty_desc,
+      wa_excel TYPE ty_excel.
+
+
+
+*---------------------------------------------------------------------*
+* Definição ALV
+*---------------------------------------------------------------------*
+DATA: lt_fieldcat TYPE slis_t_fieldcat_alv,
+      wa_fieldcat TYPE slis_fieldcat_alv,
+      v_layout    TYPE slis_layout_alv,
+      lt_sort     TYPE slis_t_sortinfo_alv,
+      wa_sort     TYPE slis_t_sortinfo_alv WITH HEADER LINE.
+
+*---------------------------------------------------------------------*
+* Opções de Seleção - (s)                                             *
+* Parametros        - (p)                                             *
+*---------------------------------------------------------------------*
+* Tela de Seleção
+*---------------------------------------------------------------------*
+SELECTION-SCREEN BEGIN OF BLOCK b1 WITH FRAME TITLE TEXT-t01.
+SELECT-OPTIONS: s_lifnr FOR lfa1-lifnr,                 "O campo referenciado não pode ser de uma tabela local
+                s_name1 FOR lfa1-name1 NO INTERVALS,
+                s_ort01 FOR lfa1-ort01 NO INTERVALS,
+                s_regio FOR lfa1-regio NO INTERVALS DEFAULT 'ES'.
+PARAMETERS:     p_alv AS CHECKBOX DEFAULT 'X'.
+SELECTION-SCREEN END OF BLOCK b1.
+
+
+*---------------------------------------------------------------------*
+* Inicialização
+*---------------------------------------------------------------------*
+*INITIALIZATION.                  "Não foi necessário pois DEFAULT foi declarado
+*  s_regio-option = 'EQ'.
+*  s_regio-sign   = 'I'.
+*  s_regio-low    = 'ES'.
+*  s_regio-high   = ''.
+*  APPEND s_regio.
+
+
+*---------------------------------------------------------------------*
+* Processamento e Exibição
+*---------------------------------------------------------------------*
+START-OF-SELECTION.
+
+  PERFORM zf_busca_dados.
+  PERFORM zf_processa_dados.
+  PERFORM zf_exibir_dados USING p_alv.
+
+END-OF-SELECTION.
+
+
+*---------------------------------------------------------------------*
+* FORM zf_busca_dados
+*---------------------------------------------------------------------*
+FORM zf_busca_dados.
+
+  SELECT a~lifnr a~name1 a~ort01 a~anred
+         a~regio a~land1 b~bukrs b~pernr b~altkn
+    FROM lfa1 AS a
+   INNER JOIN lfb1 AS b ON a~lifnr EQ b~lifnr
+    INTO TABLE lt_forn
+   WHERE a~lifnr IN s_lifnr
+     AND a~name1 IN s_name1
+     AND a~ort01 IN s_ort01
+     AND a~regio IN s_regio.
+
+  "Entradas em t001
+  SELECT t~bukrs t~butxt
+    FROM t001 AS t
+   INTO TABLE lt_desc
+    FOR ALL ENTRIES IN lt_forn
+   WHERE t~bukrs EQ lt_forn-bukrs.
+
+  "Ordenagão da tabela pelo campo 'BUKRS'
+  SORT lt_desc BY bukrs.
+
+ENDFORM.          "zf_busca_dados
+
+
+*---------------------------------------------------------------------*
+* FORM zf_processa_dados
+*---------------------------------------------------------------------*
+FORM zf_processa_dados.
+
+  FIELD-SYMBOLS <fs_saida> TYPE any.    "Declaração de ponteiro de nenhum tipo específico
+  FIELD-SYMBOLS <fs_campo> TYPE any.
+
+  FREE lt_saida.
+
+  LOOP AT lt_forn INTO wa_forn.
+    CLEAR wa_saida.
+
+    MOVE-CORRESPONDING wa_forn TO wa_saida.
+
+    "Descrição da Empresa
+    READ TABLE lt_desc INTO wa_desc WITH KEY bukrs = wa_saida-bukrs BINARY SEARCH.
+    IF sy-subrc EQ 0.
+      wa_saida-butxt = wa_desc-butxt.
+    ENDIF.
+
+    CASE wa_saida-altkn.
+      WHEN ''.
+        wa_saida-icon = icon_incomplete.
+      WHEN OTHERS.
+        wa_saida-icon = icon_checked.
+    ENDCASE.
+
+*    CONCATENATE wa_saida-bukrs wa_saida-butxt INTO wa_saida-butxt SEPARATED BY '-'.    "Jeito antigo desconsidera espaço
+*    wa_saida-butxt = wa_saida-bukrs && '-' && wa_saida-butxt.                          "Jeito antigo desconsidera espaço
+    wa_saida-butxt = |{ wa_saida-bukrs } - { wa_saida-butxt }|.                         "Jeito novo
+
+    APPEND wa_saida TO lt_saida.
+  ENDLOOP.
+
+  LOOP AT lt_forn INTO DATA(w_teste).
+
+  ENDLOOP.
+
+  LOOP AT lt_forn ASSIGNING <fs_saida>.
+
+    ASSIGN COMPONENT 'BUKRS' OF STRUCTURE <fs_saida> TO <fs_campo>.
+    IF sy-subrc IS INITIAL.
+      <fs_campo> = 1.
+    ENDIF.
+
+  ENDLOOP.
+
+  LOOP AT lt_forn ASSIGNING FIELD-SYMBOL(<fs_teste>).
+
+    <fs_teste>-lifnr = 1.
+
+  ENDLOOP.
+
+ENDFORM.          "zf_processa_dados
+
+
+*---------------------------------------------------------------------*
+* FORM zf_exibir_dadod
+*---------------------------------------------------------------------*
+* USING p_chalv                                                       *
+*---------------------------------------------------------------------*
+FORM zf_exibir_dados USING p_chalv.
+
+  IF p_chalv EQ abap_true.
+    PERFORM zf_ordena_dados.
+    PERFORM zf_alv.
+  ELSE.
+    PERFORM zf_write.
+  ENDIF.
+
+ENDFORM.          "zf_exibir_dados
+
+
+*---------------------------------------------------------------------*
+* FORM zf_write
+*---------------------------------------------------------------------*
+FORM zf_write.
+
+  FORMAT COLOR COL_NORMAL ON.
+
+  "Header
+  WRITE: sy-uline NO-GAP.
+  WRITE: (160)'| Log de Processamentos', '|'.
+  WRITE: sy-uline NO-GAP.
+
+  WRITE:/ '| ID', 16'| Nome', 60'| Cidade', 80'| Tipo', 96'| UF', 112'| País', 130'| Company Code', 146'| Company Desc', 162'|'.
+  WRITE: sy-uline NO-GAP.
+
+  IF sy-subrc EQ 0.
+    LOOP AT lt_saida INTO wa_saida.
+      IF wa_saida-bukrs NE '2100'.
+        FORMAT COLOR COL_NEGATIVE ON.  "COLOR 6 = vermelho
+        WRITE:/ '|', wa_saida-lifnr, 16'|', wa_saida-name1, 60'|', wa_saida-ort01, 80'|', wa_saida-anred, 96'|',
+                     wa_saida-regio, 112'|', wa_saida-land1, 130'|', wa_saida-bukrs, 146'|', wa_saida-pernr, 162'|'.
+
+      ELSE.
+        FORMAT COLOR COL_POSITIVE ON.  "COLOR 5 = verde
+        WRITE:/ '|', wa_saida-lifnr, 16'|', wa_saida-name1, 60'|', wa_saida-ort01, 80'|', wa_saida-anred, 96'|',
+                     wa_saida-regio, 112'|', wa_saida-land1, 130'|', wa_saida-bukrs, 146'|', wa_saida-pernr, 162'|'.
+
+      ENDIF.
+
+    ENDLOOP.
+
+  ELSE.
+    WRITE:/ 'Nenhum registro encontrado'.
+
+  ENDIF.
+
+ENDFORM.         "zf_write
+
+
+*---------------------------------------------------------------------*
+* FORM zf_ordena_dados
+*---------------------------------------------------------------------*
+FORM zf_ordena_dados.
+
+  CLEAR: wa_sort, lt_sort.
+  REFRESH:  wa_sort, lt_sort.
+
+  PERFORM zf_sort USING: 'LIFNR' 1 'X' '' 'X',
+                         'BUKRS' 1 'X' '' 'X'.
+
+ENDFORM.          "zf_ordena_dados
+
+
+*---------------------------------------------------------------------*
+* FORM zf_sort
+*---------------------------------------------------------------------*
+* USING p_name p_pos p_up p_down p_subtot
+*---------------------------------------------------------------------*
+FORM zf_sort USING p_name p_pos p_up p_down p_subtot.
+
+  CLEAR: wa_sort.
+
+  wa_sort-fieldname = p_name.
+  wa_sort-spos      = p_pos.
+  wa_sort-up        = p_up.
+  wa_sort-down      = p_down.
+  wa_sort-subtot    = p_subtot.
+  APPEND wa_sort TO lt_sort.
+
+ENDFORM.          "zf_sort
+
+
+*---------------------------------------------------------------------*
+* FORM zf_alv
+*---------------------------------------------------------------------*
+FORM zf_alv.
+
+  REFRESH lt_fieldcat.
+
+  PERFORM zf_add_field USING:
+        'LIFNR' 'ID'                 'X',
+        'NAME1' 'Nome'               '',
+        'ORT01' 'Cidade'             '',
+        'ANRED' 'Tipo'               '',
+        'REGIO' 'UF'                 '',
+        'LAND1' 'País'               '',
+        'ICON'  'Status'             '',
+        'ALTKN' 'Nº Antigo da Conta' '',
+        'BUKRS' 'Company Code'       '',
+        'BUTXT' 'Company Desc.'      '',
+        'PERNR' 'Num Pessoal'        ''.
+
+  wa_excel-sel   = 'S'.
+  wa_excel-icon  = 'Stat'.
+  wa_excel-lifnr = 'ID'.
+  wa_excel-name1 = 'Nome'.
+  wa_excel-ort01 = 'Cidade'.
+  wa_excel-anred = 'Tipo'.
+  wa_excel-regio = 'UF'.
+  wa_excel-land1 = 'Pais'.
+  wa_excel-altkn = 'NAn'.
+  wa_excel-bukrs = 'Code'.
+  wa_excel-butxt = 'Comp Name'.
+  wa_excel-pernr = 'NPesl'.
+
+  APPEND wa_excel TO t_excel.
+  CLEAR wa_excel.
+
+  PERFORM zf_imprime_alv.
+
+  " FORM zf_add_field Subistitui toda essa declaração abaixo
+
+*  wa_fieldcat-fieldname = 'lifnr'.
+*  wa_fieldcat-seltext_m = 'ID'.
+*  APPEND wa_fieldcat TO lt_fieldcat.
+*
+*  wa_fieldcat-fieldname = 'name1'.
+*  wa_fieldcat-seltext_m = 'Nome'.
+*  APPEND wa_fieldcat TO lt_fieldcat.
+*
+*  wa_fieldcat-fieldname = 'ort01'.
+*  wa_fieldcat-seltext_m = 'Cidade'.
+*  APPEND wa_fieldcat TO lt_fieldcat.
+*
+*  wa_fieldcat-fieldname = 'anred'.
+*  wa_fieldcat-seltext_m = 'Tipo'.
+*  APPEND wa_fieldcat TO lt_fieldcat.
+*
+*  wa_fieldcat-fieldname = 'regio'.
+*  wa_fieldcat-seltext_m = 'UF'.
+*  APPEND wa_fieldcat TO lt_fieldcat.
+
+ENDFORM.          "zf_alv
+
+
+*---------------------------------------------------------------------*
+* FORM zf_add_field
+*---------------------------------------------------------------------*
+FORM zf_add_field USING p_field p_seltext p_hots.
+
+  CLEAR wa_fieldcat.
+  wa_fieldcat-fieldname = p_field.
+  wa_fieldcat-seltext_m = p_seltext.
+  wa_fieldcat-hotspot   = p_hots.
+
+  APPEND wa_fieldcat TO lt_fieldcat.
+
+ENDFORM.          "zf_add_field
+
+
+*---------------------------------------------------------------------*
+* FORM zf_imprime_alv
+*---------------------------------------------------------------------*
+FORM zf_imprime_alv.
+
+  v_layout-expand_all        = ''.
+  v_layout-zebra             = 'X'.   "Deixa as linhas zebradas
+  v_layout-colwidth_optimize = 'X'.   "Usa o minimo de espaço possivel
+  v_layout-box_fieldname     = 'SEL'. "Insere uma caixa de seleção no inicio da linha
+
+  CALL FUNCTION 'REUSE_ALV_GRID_DISPLAY'
+    EXPORTING
+      i_callback_program       = sy-repid
+      i_callback_pf_status_set = 'ZF_PF_STATUS'
+      i_callback_user_command  = 'ZF_USER_COMMAND'
+      i_callback_top_of_page   = 'ZF_TOP_OF_PAGE'   "Não funciona sem (i_callback_program = sy-repid)
+      it_sort                  = lt_sort
+      is_layout                = v_layout
+      it_fieldcat              = lt_fieldcat
+    TABLES
+      t_outtab                 = lt_saida
+    EXCEPTIONS
+      program_error            = 1
+      OTHERS                   = 2.
+
+ENDFORM.          "zf_imprime_alv
+
+
+FORM zf_pf_status USING lt_extab TYPE kkblo_t_extab.
+
+  SET PF-STATUS 'STANDARD'.
+
+ENDFORM.          "zf_pf_status
+
+
+*---------------------------------------------------------------------*
+* FORM zf_top_of_page
+*---------------------------------------------------------------------*
+FORM zf_top_of_page.
+
+  "Declaração de cabeçalho
+  DATA: t_header      TYPE slis_t_listheader,
+        wa_header     TYPE slis_listheader,
+        ld_lines      TYPE i,
+        ld_linesc(10) TYPE c,
+        t_line        LIKE wa_header-info.
+
+  "Titulo
+  wa_header-typ  = 'H'.
+  wa_header-info = 'REPORT da Tabela LFA1'.
+  APPEND wa_header TO t_header.
+  CLEAR wa_header.
+
+  "DATA
+  wa_header-typ  = 'S'.
+  wa_header-key  = 'Data de Execução'.
+  CONCATENATE sy-datum+6(2) '.' sy-datum+4(2) '.' sy-datum(4) INTO wa_header-info.
+  APPEND wa_header TO  t_header.
+  CLEAR wa_header.
+
+  "Numero total de Linhas
+  DESCRIBE TABLE lt_saida LINES ld_lines.
+  ld_linesc = ld_lines.
+  CONCATENATE 'Rows count: ' ld_linesc INTO t_line SEPARATED BY space.
+  wa_header-typ  = 'A'.
+  wa_header-info = t_line.
+  APPEND wa_header TO t_header.
+  CLEAR: wa_header, t_line.
+
+  CALL FUNCTION 'REUSE_ALV_COMMENTARY_WRITE'
+    EXPORTING
+      it_list_commentary = t_header.
+
+ENDFORM.          "zf_top_of_page
+
+
+*---------------------------------------------------------------------*
+* FORM zf_user_command
+*---------------------------------------------------------------------*
+FORM zf_user_command USING r_ucomm LIKE sy-ucomm
+                      rs_selfield TYPE slis_selfield.
+
+  CASE r_ucomm.
+    WHEN 'EXPORT'.
+      PERFORM zf_exportar_excel.
+
+    WHEN OTHERS.
+      CASE rs_selfield-fieldname.
+        WHEN 'LIFNR'.
+          READ TABLE lt_saida INTO wa_saida INDEX rs_selfield-tabindex.
+
+          IF sy-subrc IS INITIAL.
+
+            SET PARAMETER ID 'BPA' FIELD wa_saida-lifnr.
+            CALL TRANSACTION 'BP' AND SKIP FIRST SCREEN.
+
+          ENDIF.
+
+        WHEN OTHERS.
+
+      ENDCASE.
+
+  ENDCASE.
+
+ENDFORM.          "zf_user_command
+
+
+*---------------------------------------------------------------------*
+* FORM zf_exportar_excel
+*---------------------------------------------------------------------*
+FORM zf_exportar_excel.
+
+  DATA: l_filename TYPE string,
+        l_path     TYPE string,
+        l_fullpath TYPE string.
+
+  DATA(lt_saida2) = lt_saida.   "Declaração inLine
+
+  SORT lt_saida2 BY sel.
+  DELETE lt_saida2 WHERE sel IS INITIAL.
+
+  MOVE-CORRESPONDING lt_saida2 TO t_excel.
+
+  "Abre janela de diretório
+  CALL METHOD cl_gui_frontend_services=>file_save_dialog
+    EXPORTING
+      window_title      = 'Save File to'
+      default_extension = 'XLS'
+      file_filter       = 'XLS'
+      initial_directory = 'C:\temp'
+    CHANGING
+      fullpath          = l_fullpath
+      path              = l_path
+      filename          = l_filename
+    EXCEPTIONS
+      OTHERS            = 1.
+
+  "Salva no diretório selecionado
+  CALL FUNCTION 'GUI_DOWNLOAD'
+    EXPORTING
+      filename              = l_fullpath
+      filetype              = 'ASC'
+      write_field_separator = 'X'
+*     dat_mode              = 'X'
+*     trunc_trailing_blanks = 'X'
+    TABLES
+      data_tab              = t_excel.
+
+  IF sy-subrc NE 0.
+
+    MESSAGE 'ERRO! Download não finalizado.' TYPE 'E'.
+
+  ENDIF.
+
+ENDFORM.          "zf_exportar_excel

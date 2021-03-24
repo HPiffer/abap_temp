@@ -1,0 +1,22 @@
+  CONSTANTS: c_schkz TYPE tvarv-name VALUE 'ZIU_SCHKZ'.
+  DATA: lwa_selopt TYPE selopt.
+
+  SELECT *
+    FROM tvarv
+    INTO TABLE t_tvarv
+   WHERE name = c_schkz.
+
+  LOOP AT t_tvarv ASSIGNING FIELD-SYMBOL(<fs_tvarv>).
+
+    IF <fs_tvarv>-high IS NOT INITIAL.
+      lwa_selopt = 'IBT'.
+      lwa_selopt-low = <fs_tvarv>-low.
+      lwa_selopt-high = <fs_tvarv>-high.
+    ELSE.
+      lwa_selopt = 'IEQ'.
+      lwa_selopt-low = <fs_tvarv>-low.
+    ENDIF.
+
+    APPEND lwa_selopt TO t_selopt.
+
+  ENDLOOP.

@@ -1,0 +1,259 @@
+*****************************************************************************************
+*                                                                                       *
+*                     ********************************************                      *
+*                     *                    MW                    *                      *
+*                     *                 MEGAWORK                 *                      *
+*                     *        CONFIDENCIAL E PROPRIETÁRIO       *                      *
+*                     *       TODOS OS DIREITOS RESERVADOS       *                      *
+*                     ********************************************                      *
+*                                                                                       *
+*****************************************************************************************
+* NOME DO PROGRAMA    : ztestehayron3                                                   *
+* TÍTULO DO PROGRAMA  : Teste Hayron                                                    *
+* DESCRIÇÃO           : Teste de exibição com write                                     *
+* PROGRAMADOR         : Hayron Silva Piffer                                             *
+* DATA                : 20.12.2018                                                      *
+* REQUEST             :                                                                 *
+*                                                                                       *
+*---------------------------------------------------------------------------------------*
+* HISTÓRICO DE MUDANÇAS:                                                                *
+* MUD |DATA         |AUTOR             |REQUEST #     |DESCRIÇÃO                        *
+* 001 |20.12.2018   |Hayron Piffer     |Id Request    |Teste write                      *
+*****************************************************************************************
+REPORT ztestehayron3.
+
+TABLES: ztestematerial.
+
+TYPE-POOLS: icon.
+
+
+*---------------------------------------------------------------------------------------*
+* TIPOS         (TY_...)                                                                *
+*---------------------------------------------------------------------------------------*
+TYPES: BEGIN OF ty_saida,   "Tipo paa saida na tela
+         icon(4),
+         codi    TYPE ztestematerial-ztestecodigo,
+         tipo    TYPE ztestematerial-ztestetipo,
+         desc    TYPE ztestematerial-ztestedescricao,
+         peso    TYPE ztestematerial-ztestepeso,
+         prec    TYPE ztestematerial-ztestepreco,
+         data    TYPE ztestematerial-ztestedata,
+         hora    TYPE ztestematerial-ztestehora,
+         user    TYPE ztestematerial-ztesteuser,
+       END OF ty_saida,
+
+       BEGIN OF ty_mat,   "Tipo paa saida na tela
+         codi TYPE ztestematerial-ztestecodigo,
+         tipo TYPE ztestematerial-ztestetipo,
+         desc TYPE ztestematerial-ztestedescricao,
+         peso TYPE ztestematerial-ztestepeso,
+         prec TYPE ztestematerial-ztestepreco,
+         data TYPE ztestematerial-ztestedata,
+         hora TYPE ztestematerial-ztestehora,
+         user TYPE ztestematerial-ztesteuser,
+       END OF ty_mat.
+
+
+*---------------------------------------------------------------------------------------*
+* TABELA INTERNA                                                                        *
+*   GLOBAL      (GT_...)                                                                *
+*   LOCAL       (LT_...)                                                                *
+*---------------------------------------------------------------------------------------*
+DATA: gt_saida TYPE TABLE OF ty_saida,
+      gt_mat   TYPE TABLE OF ty_mat.
+
+
+*---------------------------------------------------------------------------------------*
+* WORK AREA                                                                             *
+*   GLOBAL      (WA_...)                                                                *
+*   LOCAL       (LWA_...)                                                               *
+*---------------------------------------------------------------------------------------*
+DATA: wa_saida TYPE ty_saida,
+      wa_mat   TYPE ty_mat.
+
+
+*---------------------------------------------------------------------------------------*
+* VARIÁVEIS                                                                             *
+*   GLOBAIS     (V_...)                                                                 *
+*   LOCAIS      (L_...)                                                                 *
+*---------------------------------------------------------------------------------------*
+
+
+*---------------------------------------------------------------------------------------*
+* FIELD-SYMBOLS                                                                         *
+*   GLOBAL      (<FS_...>)                                                              *
+*   LOCAL       (<LFS_...>)                                                             *
+*---------------------------------------------------------------------------------------*
+
+
+*---------------------------------------------------------------------------------------*
+* CONSTANTES    (C_...)                                                                 *
+*---------------------------------------------------------------------------------------*
+
+
+*---------------------------------------------------------------------------------------*
+* PARÂMETROS DA TELA:                                                                   *
+*   SELECT OPTIONS  (S_...)                                                             *
+*   PARAMETERS      (P_...)                                                             *
+*   CHECKBOX        (CB_...)                                                            *
+*   RADIOBUTTON     (RB_...)                                                            *
+*---------------------------------------------------------------------------------------*
+SELECTION-SCREEN BEGIN OF BLOCK b1 WITH FRAME TITLE TEXT-t01.
+
+SELECT-OPTIONS: s_tipo FOR ztestematerial-ztestetipo NO INTERVALS.
+
+SELECTION-SCREEN END OF BLOCK b1.
+
+
+*---------------------------------------------------------------------------------------*
+* Processamento e Exibição                                                              *
+*---------------------------------------------------------------------------------------*
+START-OF-SELECTION.
+
+  PERFORM zf_busca_dados.
+  PERFORM zf_processa_dados.
+  PERFORM zf_exibir_dados.
+
+  AT LINE-SELECTION.
+    PERFORM zf_hotspot_config.
+
+END-OF-SELECTION.
+
+
+*&---------------------------------------------------------------------*
+*& Form ZF_BUSCA_DADOS
+*&---------------------------------------------------------------------*
+*& text
+*&---------------------------------------------------------------------*
+*& -->  p1        text
+*& <--  p2        text
+*&---------------------------------------------------------------------*
+FORM zf_busca_dados .
+
+  SELECT m~ztestecodigo m~ztestetipo m~ztestedescricao m~ztestepeso
+         m~ztestepreco m~ztestedata m~ztestehora m~ztesteuser
+    FROM ztestematerial AS m
+   INTO TABLE gt_mat
+    WHERE m~ztestetipo IN s_tipo.
+
+  SORT gt_mat BY tipo data hora ASCENDING.
+
+ENDFORM.          "zf_busca_dados
+
+
+*&---------------------------------------------------------------------*
+*& Form ZF_PROCESSA_DADOS
+*&---------------------------------------------------------------------*
+*& text
+*&---------------------------------------------------------------------*
+*& -->  p1        text
+*& <--  p2        text
+*&---------------------------------------------------------------------*
+FORM zf_processa_dados .
+
+  FREE gt_saida.
+
+  LOOP AT gt_mat INTO wa_mat.
+
+    CLEAR wa_saida.
+
+    MOVE-CORRESPONDING wa_mat TO wa_saida.
+
+    IF wa_saida-tipo EQ '3'.
+
+      wa_saida-icon = icon_other_object.
+
+    ELSEIF wa_saida-tipo EQ '1'.
+
+      wa_saida-icon = icon_system_settings.
+
+    ELSE.
+
+      wa_saida-icon = icon_icon_list.
+
+    ENDIF.
+
+    APPEND wa_saida TO gt_saida.
+
+  ENDLOOP.
+
+ENDFORM.          "zf_processa_dados
+
+
+*&---------------------------------------------------------------------*
+*& Form ZF_EXIBIR_DADOS
+*&---------------------------------------------------------------------*
+*& text
+*&---------------------------------------------------------------------*
+*& -->  p1        text
+*& <--  p2        text
+*&---------------------------------------------------------------------*
+FORM zf_exibir_dados .
+
+  FORMAT COLOR COL_NORMAL ON.
+
+  "Header
+  WRITE: sy-uline(111) NO-GAP.
+  WRITE: (109) '| Lista de Materiais', '|'.
+  WRITE: sy-uline(111) NO-GAP.
+
+  FORMAT COLOR COL_POSITIVE ON.
+
+  WRITE:/ '| COD', 10'| ICON', 17'| TIPO', 24'| DESCRIÇÃO', 55'| PESO', 66'| PREÇO', 76'| DATA', 89'| HORA', 100'| USER', 111'|'.
+  WRITE: sy-uline(111) NO-GAP.
+
+  FORMAT COLOR COL_POSITIVE OFF.
+
+  "Dados da tabela
+  IF sy-subrc EQ 0.
+
+    LOOP AT gt_saida INTO wa_saida.
+
+
+      WRITE:/  '|', wa_saida-codi HOTSPOT,
+             10'|', wa_saida-icon,
+             17'|', wa_saida-tipo,
+             24'|', wa_saida-desc,
+             55'|', wa_saida-peso LEFT-JUSTIFIED,
+             66'|', wa_saida-prec LEFT-JUSTIFIED,
+             76'|', wa_saida-data,
+             89'|', wa_saida-hora,
+            100'|', wa_saida-user,
+            111'|'.
+      WRITE: sy-uline(111) NO-GAP.
+
+    ENDLOOP.
+
+  ELSE.
+
+    FORMAT COLOR COL_NEGATIVE ON.
+    WRITE: (109) '| Nenhum registro foi encontrado', '|'.
+
+  ENDIF.
+
+ENDFORM.          "zf_exibir_dados
+
+
+*&---------------------------------------------------------------------*
+*& Form ZF_HOTSPOT_CONFIG
+*&---------------------------------------------------------------------*
+*& text
+*&---------------------------------------------------------------------*
+*& -->  p1        text
+*& <--  p2        text
+*&---------------------------------------------------------------------*
+FORM zf_hotspot_config .
+
+  DATA: l_cursorfield(20).
+
+  GET CURSOR FIELD l_cursorfield. "Pega a posição do cursor
+
+  IF sy-ucomm = 'PICK'.
+
+    WRITE:/ sy-uline(111) NO-GAP.
+    WRITE: (111) sy-lisel COLOR = 2.  "Imprime a linha inteira que foi selecionada
+    WRITE:/ sy-uline(111) NO-GAP.
+
+  ENDIF.
+
+ENDFORM.          "zf_hotspot_config

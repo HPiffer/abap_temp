@@ -1,0 +1,226 @@
+**********************************************************************
+* DEFINIÇÕES ALV                                                     *
+**********************************************************************
+DATA:
+*- Tabelas ----------------------------------------------------------*
+      t_fieldcat  TYPE TABLE OF slis_fieldcat_alv,
+      t_sort      TYPE TABLE OF slis_sortinfo_alv,
+*- Work Areas -------------------------------------------------------*
+      wa_fieldcat TYPE slis_fieldcat_alv,
+      wa_sort     TYPE slis_sortinfo_alv,
+*- Variaveis --------------------------------------------------------*
+      v_layout    TYPE slis_layout_alv.
+
+
+*&---------------------------------------------------------------------*
+*&      Form  F_CALL_ALV
+*&---------------------------------------------------------------------*
+*       text
+*----------------------------------------------------------------------*
+*  -->  p1        text
+*  <--  p2        text
+*----------------------------------------------------------------------*
+FORM F_CALL_ALV .
+
+  REFRESH t_fieldcat.
+
+  PERFORM f_ordena_dados.
+
+*- Passar dados da tabela de saída-----------------------------------*
+  PERFORM f_add_field USING:
+*        'Field'   'SelText'                 'Hotspot',
+        'BUKRS'   'Empresa'                 ''.
+
+  PERFORM f_imprime_alv.
+
+ENDFORM.                    " F_CALL_ALV
+
+
+*&---------------------------------------------------------------------*
+*&      Form  F_ORDENA_DADOS
+*&---------------------------------------------------------------------*
+*       text
+*----------------------------------------------------------------------*
+*  -->  p1        text
+*  <--  p2        text
+*----------------------------------------------------------------------*
+FORM F_ORDENA_DADOS .
+
+  CLEAR: wa_sort, t_sort.
+  REFRESH: t_sort.
+
+  PERFORM f_sort USING:
+*        'Campo'   'Ordem' 'Up'  'Down'  'Subtotal',
+        'BUKRS'   1       'X'   ''      'X'.
+
+ENDFORM.                    " F_ORDENA_DADOS
+
+
+*&---------------------------------------------------------------------*
+*&      Form  F_SORT
+*&---------------------------------------------------------------------*
+*       text
+*----------------------------------------------------------------------*
+*      -->P_NAME    text
+*      -->P_POS     text
+*      -->P_UP      text
+*      -->P_DOWN    text
+*      -->P_SUBTOT  text
+*----------------------------------------------------------------------*
+FORM F_SORT  USING  p_name p_pos p_up p_down p_subtot.
+
+  CLEAR: wa_sort.
+
+  wa_sort-fieldname = p_name.
+  wa_sort-spos      = p_pos.
+  wa_sort-up        = p_up.
+  wa_sort-down      = p_down.
+  wa_sort-subtot    = p_subtot.
+  APPEND wa_sort TO t_sort.
+
+ENDFORM.                    " F_SORT
+
+
+*&---------------------------------------------------------------------*
+*&      Form  F_ADD_FIELD
+*&---------------------------------------------------------------------*
+*       text
+*----------------------------------------------------------------------*
+*      -->P_FIELD     text
+*      -->P_FIELD     text
+*      -->P_HOTSPOT   text
+*----------------------------------------------------------------------*
+FORM F_ADD_FIELD  USING  p_field p_seltext p_hotspot.
+
+  CLEAR wa_fieldcat.
+
+  wa_fieldcat-fieldname = p_field.
+  wa_fieldcat-seltext_m = p_seltext.
+  wa_fieldcat-hotspot   = p_hotspot.
+
+  APPEND wa_fieldcat TO t_fieldcat.
+
+ENDFORM.                    " F_ADD_FIELD
+
+
+*&---------------------------------------------------------------------*
+*&      Form  F_IMPRIME_ALV
+*&---------------------------------------------------------------------*
+*       text
+*----------------------------------------------------------------------*
+*  -->  p1        text
+*  <--  p2        text
+*----------------------------------------------------------------------*
+FORM F_IMPRIME_ALV .
+
+*- Monta Layout do ALV ----------------------------------------------*
+  v_layout-expand_all        = ''.
+  v_layout-zebra             = 'X'.   "Deixa as linhas zebradas
+  v_layout-colwidth_optimize = 'X'.   "Usa o minimo de espaço possivel
+  v_layout-box_fieldname     = 'SEL'. "Insere uma caixa de seleção no inicio da linha
+
+*- Chama função do ALV ----------------------------------------------*
+    CALL FUNCTION 'REUSE_ALV_GRID_DISPLAY'
+    EXPORTING
+      i_callback_program       = sy-repid
+      i_callback_pf_status_set = 'F_PF_STATUS'
+      i_callback_user_command  = 'F_USER_COMMAND'
+      i_callback_top_of_page   = 'F_TOP_OF_PAGE'   "Não funciona sem (i_callback_program = sy-repid)
+      it_sort                  = t_sort
+      is_layout                = v_layout
+      it_fieldcat              = t_fieldcat
+    TABLES
+      t_outtab                 = t_saida
+    EXCEPTIONS
+      program_error            = 1
+      .
+
+ENDFORM.                    " F_IMPRIME_ALV
+
+
+*&---------------------------------------------------------------------*
+*&      Form  F_PF_STATUS
+*&---------------------------------------------------------------------*
+*       text
+*----------------------------------------------------------------------*
+*  -->  p1        text
+*  <--  p2        text
+*----------------------------------------------------------------------*
+FORM F_PF_STATUS .
+  SET PF-STATUS 'STANDARD'.
+ENDFORM.
+
+
+*&---------------------------------------------------------------------*
+*&      Form  F_USER_COMMAND
+*&---------------------------------------------------------------------*
+*       text
+*----------------------------------------------------------------------*
+*  -->  p1        text
+*  <--  p2        text
+*----------------------------------------------------------------------*
+FORM F_USER_COMMAND .
+
+  CASE sy-ucomm.
+
+    WHEN ''.
+    
+    WHEN ''.
+
+    WHEN ''.
+
+    WHEN OTHERS.
+
+  ENDCASE.
+
+ENDFORM.
+
+
+*&---------------------------------------------------------------------*
+*&      Form  F_TOP_OF_PAGE
+*&---------------------------------------------------------------------*
+*       text
+*----------------------------------------------------------------------*
+*  -->  p1        text
+*  <--  p2        text
+*----------------------------------------------------------------------*
+FORM F_TOP_OF_PAGE .
+
+*- Declaração de cabeçalho ------------------------------------------*
+  DATA:
+*- Tabelas ----------------------------------------------------------*
+        t_header      TYPE TABLE OF slis_listheader,
+        t_line        TYPE TABLE OF slis_listheader-info,
+*- Work Areas -------------------------------------------------------*
+        wa_header     TYPE slis_listheader,
+        wa_line       TYPE slis_listheader-info,
+*- Variaveis --------------------------------------------------------*
+        vl_lines      TYPE i. "Linhas
+
+*- Titulo -----------------------------------------------------------*
+  wa_header-typ   = 'H'.
+  wa_header-info  = 'Breve Descrição do Relatório'.
+  APPEND wa_header TO t_header.
+  CLEAR wa_header.
+
+*- Data -------------------------------------------------------------*
+  wa_header-typ   = 'S'.
+  wa_header-key   = 'Data de Execução'.
+  wa_header-info  = |{ sy-datum+6(2) }.{ sy-datum+4(2) }.{ sy-datum(4) }|.
+  APPEND wa_header TO t_header.
+  CLEAR wa_header.
+
+*- Numero total de Linhas -------------------------------------------*
+  DESCRIBE TABLE t_saida LINES vl_lines.
+  wa_line = |Qtd. Linhas: { vl_lines }|.
+  wa_header-typ = 'A'.
+  wa_header-info  = wa_line.
+  APPEND wa_header TO t_header.
+  CLEAR: wa_header, t_line.
+
+  CALL FUNCTION 'REUSE_ALV_COMMENTARY_WRITE'
+    EXPORTING
+      it_list_commentary = t_header
+      .
+
+ENDFORM.                    " F_TOP_OF_PAGE
