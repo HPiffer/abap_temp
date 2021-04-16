@@ -1,0 +1,172 @@
+**********************************************************************
+* DEFINIÇÕES ALV                                                     *
+**********************************************************************
+DATA:
+*- Tabelas ----------------------------------------------------------*
+      gt_fieldcat TYPE TABLE OF slis_fieldcat_alv,
+      gt_sort     TYPE TABLE OF slis_sortinfo_alv,
+*- Estruturas -------------------------------------------------------*
+      gs_fieldcat TYPE slis_fieldcat_alv,
+      gs_sort     TYPE slis_sortinfo_alv,
+*- Variaveis --------------------------------------------------------*
+      gv_layout    TYPE slis_layout_alv.
+      
+
+*&---------------------------------------------------------------------*
+*& Form f_call_alv
+*&---------------------------------------------------------------------*
+*& Organiza dados para o ALV
+*&---------------------------------------------------------------------*
+FORM f_call_alv .
+
+    "// Remove possível lixo das tabelas
+    REFRESH: gt_fieldcat, gt_sort.
+  
+    "// Ordena dados paa saída
+    SORT gt_saida BY matnr ASCENDING.
+  
+    PERFORM f_add_field USING:
+  *   'CAMPO' 'Texto Exib.'       'Checkbox' 'Editavel' 'Hotspot'
+      'SEL'   'Check'             'X'        'X'        ' ',
+      'MATNR' 'Material'          ' '        ' '        ' ',
+      'MAKTX' 'Descrição'         ' '        ' '        ' ',
+      'LGPBR' 'Pos. no Depósito'  ' '        ' '        ' ',
+      'WERKS' 'Centro'            ' '        ' '        ' ',
+      'LGORT' 'Depósito'          ' '        ' '        ' ',
+      'MEINS' 'Un. Medida'        ' '        ' '        ' '.
+  
+    PERFORM f_imprime_alv.
+  
+  ENDFORM.
+  
+  *&---------------------------------------------------------------------*
+  *& Form f_add_field
+  *&---------------------------------------------------------------------*
+  *& Adiciona campos na estrutura do ALV
+  *&---------------------------------------------------------------------*
+  FORM f_add_field  USING  p_field
+                           p_seltext
+                           p_is_checkbox
+                           p_edit
+                           p_hotspot.
+  
+    CLEAR gs_fieldcat.
+  
+    gs_fieldcat-fieldname = p_field.
+    gs_fieldcat-seltext_m = p_seltext.
+    gs_fieldcat-checkbox  = p_is_checkbox.
+    gs_fieldcat-edit      = p_edit.
+    gs_fieldcat-hotspot   = p_hotspot.
+  
+    APPEND gs_fieldcat TO gt_fieldcat.
+  
+  ENDFORM.
+  
+  *&---------------------------------------------------------------------*
+  *& Form f_imprime_alv
+  *&---------------------------------------------------------------------*
+  *& Imprime ALV
+  *&---------------------------------------------------------------------*
+  FORM f_imprime_alv .
+  
+  *- Monta Layout do ALV ----------------------------------------------*
+    gv_layout-expand_all        = ''.
+    gv_layout-zebra             = 'X'.   "Deixa as linhas zebradas
+    gv_layout-colwidth_optimize = 'X'.   "Usa o minimo de espaço possivel
+    gv_layout-box_fieldname     = 'SEL'. "Insere uma caixa de seleção no inicio da linha
+  
+  *- Chama função do ALV ----------------------------------------------*
+    CALL FUNCTION 'REUSE_ALV_GRID_DISPLAY'
+      EXPORTING
+        i_callback_program       = sy-repid
+        i_callback_pf_status_set = 'F_PF_STATUS'
+        i_callback_user_command  = 'F_USER_COMMAND'
+        i_callback_top_of_page   = 'F_TOP_OF_PAGE'   "Não funciona sem (i_callback_program = sy-repid)
+        is_layout                = gv_layout
+        it_fieldcat              = gt_fieldcat
+      TABLES
+        t_outtab                 = gt_saida
+      EXCEPTIONS
+        program_error            = 1.
+  
+  ENDFORM.
+  
+  *&---------------------------------------------------------------------*
+  *& Form f_pf_status
+  *&---------------------------------------------------------------------*
+  *& Define o Status GUI
+  *&---------------------------------------------------------------------*
+  FORM f_pf_status .
+    "// Status GUI copiado do programa SAPLSALV
+    SET PF-STATUS 'STANDARD'.
+  ENDFORM.
+  
+  
+  *&---------------------------------------------------------------------*
+  *& Form f_user_command
+  *&---------------------------------------------------------------------*
+  *& Controla as ações do usuário
+  *&---------------------------------------------------------------------*
+  FORM f_user_command .
+  
+    CASE sy-ucomm.
+  
+      WHEN '&F03' OR '&F15'.
+        LEAVE TO SCREEN 0.
+  
+      WHEN '&F15'.
+        LEAVE PROGRAM.
+  
+      WHEN '&RNT'.
+        PERFORM f_chama_impressao.
+  
+      WHEN OTHERS.
+  
+    ENDCASE.
+  
+  ENDFORM.
+  
+  *&---------------------------------------------------------------------*
+  *& Form f_top_of_page
+  *&---------------------------------------------------------------------*
+  *& Declara o Cabeçalho do ALV
+  *&---------------------------------------------------------------------*
+  FORM f_top_of_page .
+  
+  *- Declaração de cabeçalho ------------------------------------------*
+    DATA:
+  *- Tabelas ----------------------------------------------------------*
+      lt_header TYPE TABLE OF slis_listheader,
+      lt_line   TYPE TABLE OF slis_listheader-info,
+  *- Work Areas -------------------------------------------------------*
+      ls_header TYPE slis_listheader,
+      ls_line   TYPE slis_listheader-info,
+  *- Variaveis --------------------------------------------------------*
+      lv_lines  TYPE i. "Linhas
+  
+  *- Titulo -----------------------------------------------------------*
+    ls_header-typ   = 'H'.
+    ls_header-info  = 'Reimpressão de Etiquetas'.
+    APPEND ls_header TO lt_header.
+    CLEAR ls_header.
+  
+  *- Data -------------------------------------------------------------*
+    ls_header-typ   = 'S'.
+    ls_header-key   = 'Data de Execução'.
+    ls_header-info  = |{ sy-datum+6(2) }.{ sy-datum+4(2) }.{ sy-datum(4) }|.
+    APPEND ls_header TO lt_header.
+    CLEAR ls_header.
+  
+  *- Numero total de Linhas -------------------------------------------*
+    DESCRIBE TABLE gt_saida LINES lv_lines.
+    ls_line = |Qtd. Linhas: { lv_lines }|.
+    ls_header-typ = 'A'.
+    ls_header-info  = ls_line.
+    APPEND ls_header TO lt_header.
+    CLEAR: ls_header, lt_line.
+  
+    CALL FUNCTION 'REUSE_ALV_COMMENTARY_WRITE'
+      EXPORTING
+        it_list_commentary = lt_header.
+  
+  ENDFORM.
