@@ -27,7 +27,6 @@ FORM f_call_alv .
 
   PERFORM f_add_field USING:
 *   'CAMPO' 'Texto Exib.'       'Checkbox' 'Editavel' 'Hotspot'
-    'SEL'   'Check'             'X'        'X'        ' ',
     'MATNR' 'Material'          ' '        ' '        ' ',
     'MAKTX' 'Descrição'         ' '        ' '        ' ',
     'LGPBR' 'Pos. no Depósito'  ' '        ' '        ' ',
@@ -71,9 +70,10 @@ FORM f_imprime_alv .
 
 *- Monta Layout do ALV ----------------------------------------------*
   gv_layout-expand_all        = ''.
-  gv_layout-zebra             = 'X'.   "Deixa as linhas zebradas
-  gv_layout-colwidth_optimize = 'X'.   "Usa o minimo de espaço possivel
-  gv_layout-box_fieldname     = 'SEL'. "Insere uma caixa de seleção no inicio da linha
+  gv_layout-zebra             = 'X'.   "// Deixa as linhas zebradas
+  gv_layout-colwidth_optimize = 'X'.   "// Usa o minimo de espaço possivel
+  gv_layout-box_fieldname     = 'SEL'. "// Insere uma caixa de seleção no inicio da linha
+  "//? box_fieldname tem que ter o mesmo nome que um campo flag da sua tabela de saída
 
 *- Chama função do ALV ----------------------------------------------*
   CALL FUNCTION 'REUSE_ALV_GRID_DISPLAY'
@@ -81,7 +81,7 @@ FORM f_imprime_alv .
       i_callback_program       = sy-repid
       i_callback_pf_status_set = 'F_PF_STATUS'
       i_callback_user_command  = 'F_USER_COMMAND'
-      i_callback_top_of_page   = 'F_TOP_OF_PAGE'   "Não funciona sem (i_callback_program = sy-repid)
+      i_callback_top_of_page   = 'F_TOP_OF_PAGE'   "// Não funciona sem (i_callback_program = sy-repid)
       is_layout                = gv_layout
       it_fieldcat              = gt_fieldcat
     TABLES
